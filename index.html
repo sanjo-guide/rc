@@ -15,8 +15,24 @@ html,body{margin:0;height:100%;background:#fff;font-family:system-ui,sans-serif}
 <p id="wait">読みこみ中…</p>
 <iframe id="app" title="PHS ルームチェック"></iframe>
 <script>
+// アプリの本体（Google Apps Script）。開くには、スタッフの合言葉が必要です。
+// 合言葉はこのファイルには書いていません。入れた合言葉は、このスマホの中にだけ残ります。
 var id = ['AKfycby_lMtZm_YkWD_CxEi9kk0oA9M0AyGZi', 'KU7tjKCTll1A_B2BDGuZi8-3bA6TeVB9a2TRg'].join('');
-document.getElementById('app').src = 'https://script.google.com/macros/s/' + id + '/exec';
+var base = 'https://script.google.com/macros/s/' + id + '/exec';
+var from = /^https:\/\/[-a-z0-9]+-script\.googleusercontent\.com$/;
+var app = document.getElementById('app');
+function saved() { try { return localStorage.getItem('rc-key') || ''; } catch (e) { return ''; } }
+function open_(k) { app.src = base + (k ? '?k=' + encodeURIComponent(k) : ''); }
+window.addEventListener('message', function (ev) {
+  if (!from.test(ev.origin) || !ev.data) return;
+  if (ev.data.rc === 'hello') {
+    ev.source.postMessage({ rc: 'here' }, ev.origin);
+  } else if (ev.data.rc === 'key' && typeof ev.data.k === 'string' && ev.data.k.length <= 100) {
+    try { localStorage.setItem('rc-key', ev.data.k); } catch (e) {}
+    open_(ev.data.k);
+  }
+});
+open_(saved());
 </script>
 </body>
 </html>
