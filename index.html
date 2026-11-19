@@ -7,12 +7,16 @@
 <title>PHS ルームチェック</title>
 <style>
 html,body{margin:0;height:100%;background:#fff;font-family:system-ui,sans-serif}
-#wait{position:fixed;top:40%;left:0;right:0;text-align:center;color:#888}
 #app{position:fixed;top:0;left:0;width:100%;height:100%;border:0}
+#wait{position:fixed;top:0;left:0;right:0;bottom:0;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:#fff;color:#666;font-size:16px;text-align:center}
+#wait[hidden]{display:none}
+#wait i{width:30px;height:30px;border:3px solid #ddd;border-top-color:#1f6feb;border-radius:50%;animation:spin .9s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-color-scheme: dark){html,body,#wait{background:#151a19;color:#aaa}#wait i{border-color:#333;border-top-color:#4fb394}}
 </style>
 </head>
 <body>
-<p id="wait">読みこみ中…</p>
+<div id="wait" role="status"><i aria-hidden="true"></i><span>読みこみ中… / Loading…</span></div>
 <iframe id="app" title="PHS ルームチェック"></iframe>
 <script>
 // アプリの本体（Google Apps Script）。開くには、スタッフの合言葉が必要です。
@@ -20,16 +24,24 @@ html,body{margin:0;height:100%;background:#fff;font-family:system-ui,sans-serif}
 var id = ['AKfycby_lMtZm_YkWD_CxEi9kk0oA9M0AyGZi', 'KU7tjKCTll1A_B2BDGuZi8-3bA6TeVB9a2TRg'].join('');
 var base = 'https://script.google.com/macros/s/' + id + '/exec';
 var from = /^https:\/\/[-a-z0-9]+-script\.googleusercontent\.com$/;
-var app = document.getElementById('app');
+var app = document.getElementById('app'), wait = document.getElementById('wait'), timer = 0;
 function saved() { try { return localStorage.getItem('rc-key') || ''; } catch (e) { return ''; } }
-function open_(k) { app.src = base + (k ? '?k=' + encodeURIComponent(k) : ''); }
+// 「読みこみ中…」：アプリか合言葉の画面が出たら消す（知らせが来なくても30秒で消す）
+function busy(on) { clearTimeout(timer); wait.hidden = !on; if (on) timer = setTimeout(function () { wait.hidden = true; }, 30000); }
+function open_(k) { busy(true); app.src = base + (k ? '?k=' + encodeURIComponent(k) : ''); }
+// 合図は、このページの中のアプリの画面から来たものだけ受けつける
+function inside(w) { for (var i = 0; i < 6 && w; i++) { if (w === app.contentWindow) return true; if (w === w.parent) return false; w = w.parent; } return false; }
 window.addEventListener('message', function (ev) {
-  if (!from.test(ev.origin) || !ev.data) return;
-  if (ev.data.rc === 'hello') {
+  if (!from.test(ev.origin) || !ev.data || !inside(ev.source)) return;
+  var d = ev.data;
+  if (d.rc === 'hello') {
+    busy(false);
     ev.source.postMessage({ rc: 'here' }, ev.origin);
-  } else if (ev.data.rc === 'key' && typeof ev.data.k === 'string' && ev.data.k.length <= 100) {
-    try { localStorage.setItem('rc-key', ev.data.k); } catch (e) {}
-    open_(ev.data.k);
+  } else if (d.rc === 'ready') {
+    busy(false);
+  } else if (d.rc === 'key' && typeof d.k === 'string' && d.k.length <= 100) {
+    try { localStorage.setItem('rc-key', d.k); } catch (e) {}
+    open_(d.k);
   }
 });
 open_(saved());
